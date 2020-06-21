@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "http://ubuntu-netfu:3000/randy.valis/ats-libz"
+    "url": "https://github.com/xran-deex/ats-libz"
   },
   "author": "Randy Valis",
   "license": "ISC"

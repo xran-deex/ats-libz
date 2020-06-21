@@ -1,27 +1,27 @@
-ATSHOMEQ=$(PATSHOME)
-export PATSRELOCROOT=$(HOME)/ATS
-ATSCC=$(ATSHOMEQ)/bin/patscc
-ATSOPT=$(ATSHOMEQ)/bin/patsopt
+ATSCC=$(PATSHOME)/bin/patscc
+ATSOPT=$(PATSHOME)/bin/patsopt
 
-ATSCCFLAGS=-DATS_MEMALLOC_LIBC -D_DEFAULT_SOURCE
-LIBS=
-ifdef ATSLIB
-	LIBS := -L $(PATSHOME)/ccomp/atslib/lib -latslib
-endif
-ifdef PTHREAD
-	LIBS := -lpthread
+ATSFLAGS=-IATS node_modules
+
+CFLAGS=-DATS_MEMALLOC_LIBC -D_DEFAULT_SOURCE -I $(PATSHOME)/ccomp/runtime -I $(PATSHOME) -O3
+LIBS=-L $(PATSHOME)/ccomp/atslib/lib -latslib -lz
+
+APP     = libats-libz.a
+ifndef STATICLIB
+	CFLAGS+=-fpic
+	LIBS+=-shared
+	APP     = libats-libz.so
 endif
 
-APP     = main
 EXEDIR  = target
-
+ifdef OUTDIR
+	EXEDIR = $(OUTDIR)
+endif
 SRCDIR  = src
 OBJDIR  = .build
-
 vpath %.dats src
 vpath %.dats src/DATS
 vpath %.sats src/SATS
-
 dir_guard=@mkdir -p $(@D)
 SRCS    := $(shell find $(SRCDIR) -name '*.dats' -type f -exec basename {} \;)
 OBJS    := $(patsubst %.dats,$(OBJDIR)/%.o,$(SRCS))
@@ -30,24 +30,33 @@ OBJS    := $(patsubst %.dats,$(OBJDIR)/%.o,$(SRCS))
 
 all: $(EXEDIR)/$(APP)
 
-$(EXEDIR)/$(APP): $(OBJS) 
+$(EXEDIR)/$(APP): $(OBJS)
 	$(dir_guard)
-	$(ATSCC) $(ATSCCFLAGS) -o $@ $(OBJS) $(LIBS)
+ifdef STATICLIB
+	ar rcs $@ $(OBJS)
+endif
+ifndef STATICLIB
+	$(CC) $(CFLAGS) -o $(EXEDIR)/$(APP) $(OBJS) $(LIBS)
+endif
 
 .SECONDEXPANSION:
-$(OBJDIR)/%.o: %.dats $$(wildcard src/SATS/$$*.sats)
+$(OBJDIR)/%.o: %.c
 	$(dir_guard)
-	$(ATSCC) $(ATSCCFLAGS) -c $< -o $(OBJDIR)/$(@F) -cleanaft
+	$(CC) $(CFLAGS) -c $< -o $(OBJDIR)/$(@F)
+
+$(OBJDIR)/%.c: %.dats
+	$(dir_guard)
+	$(ATSOPT) $(ATSFLAGS) -o $(OBJDIR)/$(@F) -d $<
 
 RMF=rm -f
 
 clean: 
 	$(RMF) $(EXEDIR)/$(APP)
 	$(RMF) $(OBJS)
+	+make -C tests clean
 
-run: $(EXEDIR)/$(APP)
-	./$(EXEDIR)/$(APP)
+buildall: all
+	+make -C tests
 
-.SILENT: run
-
-
+test: buildall
+	+make -C tests run
